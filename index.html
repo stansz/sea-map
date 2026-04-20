@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OGS Sea — Nautical Chart</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="style.css" rel="stylesheet">
+</head>
+<body class="min-h-screen flex flex-col">
+    <header class="p-4">
+        <div class="flex items-center justify-between">
+            <a href="https://ogsapps.cc" class="back-link">← OGS Apps</a>
+            <h1 class="text-xl font-bold">🌊 OGS Sea</h1>
+            <div style="width:80px"></div>
+        </div>
+        <p class="text-center text-sm mt-1" style="color:#6a7090;">Nautical chart · Ferries · Tides · Marinas</p>
+    </header>
+
+    <main class="flex-grow relative">
+        <div id="map" class="absolute inset-0"></div>
+
+        <!-- Layer toggle panel -->
+        <div id="layerPanel" class="layer-panel">
+            <div class="layer-panel-header">
+                <span>Layers</span>
+                <button id="layerPanelClose" class="layer-panel-close">✕</button>
+            </div>
+            <div class="layer-toggles">
+                <label class="layer-toggle">
+                    <input type="checkbox" id="layerSeamarks" checked>
+                    <span>⚓ Sea Marks</span>
+                </label>
+                <label class="layer-toggle">
+                    <input type="checkbox" id="layerDepth">
+                    <span>🌊 Depth Contours</span>
+                </label>
+                <label class="layer-toggle">
+                    <input type="checkbox" id="layerFerries" checked>
+                    <span>🚢 BC Ferries Routes</span>
+                </label>
+                <label class="layer-toggle">
+                    <input type="checkbox" id="layerMarinas">
+                    <span>⛵ Marinas & Harbours</span>
+                </label>
+                <label class="layer-toggle">
+                    <input type="checkbox" id="layerTides">
+                    <span>🔄 Tide Stations</span>
+                </label>
+            </div>
+        </div>
+
+        <button id="layerToggleBtn" class="layer-toggle-btn" title="Toggle layers">🗺️</button>
+    </main>
+
+    <footer class="stt-footer">
+        <div class="footer-main">
+            <a href="https://ogsapps.cc" class="footer-link">OGS Apps</a>
+            <span class="footer-dot">·</span>
+            <span>Nautical chart data from <a href="https://openseamap.org" target="_blank" rel="noopener" class="footer-link">OpenSeaMap</a></span>
+        </div>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
