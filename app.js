@@ -30,14 +30,69 @@ const depthLayer = L.tileLayer('https://tiles.openseamap.org/depth_contours/{z}/
 
 // ─── BC Ferries Routes & Schedule ───
 
-const FERRY_ROUTES = [
-    { key: 'TSASWB', from: 'Tsawwassen', to: 'Swartz Bay', color: '#2563eb', fromLat: 49.0064, fromLon: -123.131, toLat: 48.877, toLon: -123.509 },
-    { key: 'TSADUK', from: 'Tsawwassen', to: 'Duke Point', color: '#d97706', fromLat: 49.0064, fromLon: -123.131, toLat: 49.150, toLon: -123.890 },
-    { key: 'HSBNAN', from: 'Horseshoe Bay', to: 'Departure Bay', color: '#059669', fromLat: 49.374, fromLon: -123.273, toLat: 49.176, toLon: -123.945 },
-    { key: 'HSBLNG', from: 'Horseshoe Bay', to: 'Langdale', color: '#7c3aed', fromLat: 49.374, fromLon: -123.273, toLat: 49.415, toLon: -123.553 },
-    { key: 'SWBFUL', from: 'Swartz Bay', to: 'Fulford Harbour', color: '#dc2626', fromLat: 48.877, fromLon: -123.509, toLat: 48.795, toLon: -123.416 },
-    { key: 'SWBSGI', from: 'Swartz Bay', to: 'Southern Gulf Islands', color: '#0891b2', fromLat: 48.877, fromLon: -123.509, toLat: 48.810, toLon: -123.300 },
-];
+const TERMINALS = {
+    // Major
+    TSA: { name: 'Tsawwassen', lat: 49.0064, lon: -123.131 },
+    SWB: { name: 'Swartz Bay', lat: 48.877, lon: -123.509 },
+    HSB: { name: 'Horseshoe Bay', lat: 49.374, lon: -123.273 },
+    DUK: { name: 'Duke Point', lat: 49.150, lon: -123.890 },
+    NAN: { name: 'Departure Bay', lat: 49.176, lon: -123.945 },
+    LNG: { name: 'Langdale', lat: 49.415, lon: -123.553 },
+    FUL: { name: 'Fulford Harbour', lat: 48.795, lon: -123.416 },
+    SGI: { name: 'Southern Gulf Islands', lat: 48.810, lon: -123.300 },
+    BOW: { name: 'Bowen Island', lat: 49.376, lon: -123.325 },
+    // Northern / North Coast
+    PRR: { name: 'Prince Rupert', lat: 54.310, lon: -130.325 },
+    PHR: { name: 'Port Hardy', lat: 50.723, lon: -127.425 },
+    PLH: { name: 'Bella Bella', lat: 52.173, lon: -128.145 },
+    PSK: { name: 'Skidegate', lat: 53.252, lon: -131.807 },
+    POF: { name: 'Port Hardy Bear Cove', lat: 50.686, lon: -127.483 },
+    POB: { name: 'Port McNeill', lat: 50.591, lon: -127.066 },
+    PVB: { name: 'Prince Rupert Digby', lat: 54.298, lon: -130.351 },
+    PST: { name: 'Port Simpson', lat: 54.543, lon: -130.434 },
+    SHW: { name: 'Shearwater', lat: 52.127, lon: -128.097 },
+    PBB: { name: 'Bella Bella', lat: 52.173, lon: -128.145 },
+    BEC: { name: 'Bella Coola', lat: 52.370, lon: -126.752 },
+    PPH: { name: 'Port Hardy', lat: 50.723, lon: -127.425 },
+    KLE: { name: 'Klemtu', lat: 52.594, lon: -128.522 },
+    PPR: { name: 'Prince Rupert', lat: 54.310, lon: -130.325 },
+    MCN: { name: 'McLoughlin Bay', lat: 52.148, lon: -128.108 },
+    SOI: { name: 'Sointula', lat: 50.628, lon: -126.890 },
+    ALR: { name: 'Alert Bay', lat: 50.552, lon: -126.905 },
+    QDR: { name: 'Quadra Island', lat: 50.134, lon: -125.224 },
+    CAM: { name: 'Campbell River', lat: 50.043, lon: -125.242 },
+    DNE: { name: 'Denman Island', lat: 49.516, lon: -124.780 },
+    HRN: { name: 'Hornby Island', lat: 49.527, lon: -124.640 },
+    // Minor / Southern Gulf Islands
+    ALF: { name: 'Salt Spring Island (Vesuvius)', lat: 48.834, lon: -123.449 },
+    BKY: { name: 'Pender Island (Otter Bay)', lat: 48.782, lon: -123.288 },
+    BTW: { name: 'Galiano Island (Sturdies Bay)', lat: 48.884, lon: -123.412 },
+    CFT: { name: 'Chemainus', lat: 48.935, lon: -123.718 },
+    CHM: { name: 'Chemainus', lat: 48.935, lon: -123.718 },
+    CMX: { name: 'Comox', lat: 49.668, lon: -124.930 },
+    COR: { name: 'Cortes Island', lat: 50.039, lon: -124.995 },
+    DNM: { name: 'Denman Island West', lat: 49.516, lon: -124.780 },
+    ERL: { name: 'Earls Cove', lat: 49.854, lon: -124.070 },
+    GAB: { name: 'Gabriola Island', lat: 49.169, lon: -123.802 },
+    HRB: { name: 'Harriet Bay', lat: 49.102, lon: -125.635 },
+    MIL: { name: 'Mill Bay', lat: 48.648, lon: -123.567 },
+    NAH: { name: 'Nanaimo Harbour', lat: 49.164, lon: -123.926 },
+    PEN: { name: 'Pender Island', lat: 48.782, lon: -123.288 },
+    PSB: { name: 'Powell River', lat: 49.843, lon: -124.524 },
+    PWR: { name: 'Powell River', lat: 49.843, lon: -124.524 },
+    SLT: { name: 'Salt Spring Island (Long Harbour)', lat: 48.794, lon: -123.322 },
+    TEX: { name: 'Texada Island', lat: 49.726, lon: -124.456 },
+    THT: { name: 'Thetis Island', lat: 48.975, lon: -123.589 },
+    VES: { name: 'Salt Spring Island (Vesuvius)', lat: 48.834, lon: -123.449 },
+};
+
+// Major routes get bold colored lines; minor routes get thin gray
+const MAJOR_ROUTE_COLORS = {
+    TSASWB: '#2563eb', TSADUK: '#d97706', HSBNAN: '#059669',
+    HSBLNG: '#7c3aed', SWBFUL: '#dc2626', SWBSGI: '#0891b2',
+    HSBBOW: '#e11d48', LNGHSB: '#7c3aed', DUKTSA: '#d97706',
+    SWBTSA: '#2563eb', NANHSB: '#059669',
+};
 
 function makeRouteCoords(fromLat, fromLon, toLat, toLon, points = 40) {
     const coords = [];
@@ -63,10 +118,14 @@ async function loadFerrySchedules() {
     } catch { return null; }
 }
 
-function getRouteSchedule(data, routeKey) {
-    if (!data) return null;
-    for (const route of (data.routes || [])) {
-        if ((route.routeCode || '') === routeKey || (route.routeCode || '').includes(routeKey)) return route;
+function getAllRoutes(data) {
+    if (!data) return [];
+    return [...(data.capacityRoutes || []), ...(data.nonCapacityRoutes || [])];
+}
+
+function getRouteByTerminals(data, fromCode, toCode) {
+    for (const r of getAllRoutes(data)) {
+        if (r.fromTerminalCode === fromCode && r.toTerminalCode === toCode) return r;
     }
     return null;
 }
@@ -88,45 +147,89 @@ function capacityBar(pct) {
 async function renderFerries() {
     const data = await loadFerrySchedules();
     ferryGroup.clearLayers();
+    const routes = getAllRoutes(data);
 
-    for (const route of FERRY_ROUTES) {
-        const coords = makeRouteCoords(route.fromLat, route.fromLon, route.toLat, route.toLon);
-        const line = L.polyline(coords, { color: route.color, weight: 3, opacity: 0.7, dashArray: '10 6' });
+    // Deduplicate: keep one entry per unique terminal pair (prefer forward direction)
+    const seen = new Set();
+    const uniqueRoutes = [];
+    for (const r of routes) {
+        const key = [r.fromTerminalCode, r.toTerminalCode].sort().join('-');
+        if (!seen.has(key)) {
+            seen.add(key);
+            uniqueRoutes.push(r);
+        }
+    }
+
+    const addedTerminals = new Set();
+
+    for (const route of uniqueRoutes) {
+        const fromT = TERMINALS[route.fromTerminalCode];
+        const toT = TERMINALS[route.toTerminalCode];
+        if (!fromT || !toT) continue;
+
+        const isMajor = route.routeCode in MAJOR_ROUTE_COLORS || 
+                        (route.fromTerminalCode + route.toTerminalCode) in MAJOR_ROUTE_COLORS;
+        const color = MAJOR_ROUTE_COLORS[route.routeCode] || 
+                      MAJOR_ROUTE_COLORS[route.fromTerminalCode + route.toTerminalCode] ||
+                      '#94a3b8';
+        const weight = isMajor ? 3 : 1.5;
+        const opacity = isMajor ? 0.7 : 0.4;
+
+        const coords = makeRouteCoords(fromT.lat, fromT.lon, toT.lat, toT.lon, isMajor ? 40 : 20);
+        const line = L.polyline(coords, { color, weight, opacity, dashArray: isMajor ? '10 6' : '4 4' });
         ferryGroup.addLayer(line);
 
-        for (const [lat, lon, label] of [
-            [route.fromLat, route.fromLon, route.from],
-            [route.toLat, route.toLon, route.to]
-        ]) {
-            const marker = L.circleMarker([lat, lon], {
-                radius: 6, fillColor: route.color, fillOpacity: 0.9, color: '#fff', weight: 2
+        // Find matching schedule (check both directions)
+        const sched = getRouteByTerminals(data, route.fromTerminalCode, route.toTerminalCode) ||
+                      getRouteByTerminals(data, route.toTerminalCode, route.fromTerminalCode);
+
+        for (const code of [route.fromTerminalCode, route.toTerminalCode]) {
+            const t = TERMINALS[code];
+            if (!t) continue;
+            // Only one marker per terminal
+            const tKey = code;
+            if (addedTerminals.has(tKey)) continue;
+            addedTerminals.add(tKey);
+
+            const marker = L.circleMarker([t.lat, t.lon], {
+                radius: isMajor ? 6 : 4, fillColor: color, fillOpacity: 0.9, color: '#fff', weight: 2
             });
 
-            const sched = getRouteSchedule(data, route.key);
-            let popupHTML = `<div class="ferry-popup"><h3>🚢 ${label}</h3>
-                <div class="detail">${route.from} ↔ ${route.to}</div>`;
+            // Find all routes touching this terminal
+            const terminalRoutes = uniqueRoutes.filter(r => r.fromTerminalCode === code || r.toTerminalCode === code);
+            let popupHTML = `<div class="ferry-popup"><h3>🚢 ${t.name}</h3>`;
 
-            if (sched && sched.sailings) {
-                popupHTML += '<div style="margin-top:0.5rem;font-size:0.75rem">';
-                for (const s of sched.sailings.slice(0, 5)) {
-                    const dep = formatTime(s.departureTime || s.scheduledDeparture);
-                    const arr = formatTime(s.arrivalTime || s.scheduledArrival);
-                    const vessel = s.vesselName || '';
-                    const cap = s.fill != null ? s.fill : null;
-                    const status = s.status || '';
-                    const icon = status.toLowerCase().includes('cancel') ? '❌' :
-                                 status.toLowerCase().includes('delay') ? '⚠️' : '✅';
-                    popupHTML += `<div style="padding:0.25rem 0;border-bottom:1px solid #eee">
-                        <div><b>${dep}</b> → ${arr} ${icon}</div>
-                        ${vessel ? `<div style="color:#666">⛴️ ${vessel}</div>` : ''}
-                        ${capacityBar(cap)}</div>`;
+            for (const tr of terminalRoutes.slice(0, 4)) {
+                const otherCode = tr.fromTerminalCode === code ? tr.toTerminalCode : tr.fromTerminalCode;
+                const other = TERMINALS[otherCode];
+                const otherName = other ? other.name : otherCode;
+                const trSched = getRouteByTerminals(data, tr.fromTerminalCode, tr.toTerminalCode) ||
+                               getRouteByTerminals(data, tr.toTerminalCode, tr.fromTerminalCode);
+                popupHTML += `<div class="detail" style="margin-top:0.3rem"><b>${otherName}</b></div>`;
+
+                if (trSched && trSched.sailings && trSched.sailings.length) {
+                    popupHTML += '<div style="font-size:0.7rem">';
+                    for (const s of trSched.sailings.slice(0, 3)) {
+                        const dep = s.time || '—';
+                        const arr = s.arrivalTime || '—';
+                        const vessel = s.vesselName || '';
+                        const cap = s.fill != null ? Math.round(s.fill * 100) : null;
+                        const status = s.sailingStatus || '';
+                        const icon = status.toLowerCase().includes('cancel') ? '❌' :
+                                     status.toLowerCase().includes('delay') ? '⚠️' : '✅';
+                        popupHTML += `<div style="padding:0.15rem 0;border-bottom:1px solid #eee">
+                            <b>${dep}</b> → ${arr} ${icon}`;
+                        if (vessel) popupHTML += ` <span style="color:#666">⛴${vessel.substring(0, 20)}</span>`;
+                        if (cap != null) popupHTML += capacityBar(cap);
+                        popupHTML += '</div>';
+                    }
+                    popupHTML += '</div>';
+                } else {
+                    popupHTML += '<div style="font-size:0.7rem;color:#888">No schedule data</div>';
                 }
-                popupHTML += '</div>';
-            } else {
-                popupHTML += '<div style="margin-top:0.4rem;color:#888;font-size:0.75rem">Schedule data unavailable</div>';
             }
-            popupHTML += '<div style="margin-top:0.4rem;font-size:0.65rem;color:#999">Source: bcferriesapi.ca · Updated every 5 min</div></div>';
-            marker.bindPopup(popupHTML, { maxWidth: 280 });
+            popupHTML += '<div style="margin-top:0.3rem;font-size:0.6rem;color:#999">bcferriesapi.ca · 5min updates</div></div>';
+            marker.bindPopup(popupHTML, { maxWidth: 300 });
             ferryGroup.addLayer(marker);
         }
     }
