@@ -1,6 +1,7 @@
 // OGS Sea — Nautical Chart Application
-// OpenSeaMap + BC Ferries + Tides + Marinas
+// Local API + OpenSeaMap + BC Ferries + Tides + Marinas + Lighthouses + Coastal Trails
 
+const LOCAL_API = 'https://maps.ogsapps.cc/api';
 const BC_FERRIES_API = 'https://www.bcferriesapi.ca/v2/';
 const DFO_API = 'https://api-iwls.dfo-mpo.gc.ca/api/v1';
 
@@ -10,7 +11,7 @@ const map = L.map('map', {
     zoomControl: true
 });
 
-// Base map — CARTO Voyager (clean, light, good for nautical overlays)
+// Base map — CARTO Voyager
 const baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
     maxZoom: 19
@@ -24,8 +25,7 @@ const seamarksLayer = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/
 
 // Depth contours overlay
 const depthLayer = L.tileLayer('https://tiles.openseamap.org/depth_contours/{z}/{x}/{y}.png', {
-    maxZoom: 18,
-    attribution: ''
+    maxZoom: 18, attribution: ''
 });
 
 // ─── BC Ferries Routes & Schedule ───
@@ -39,14 +39,12 @@ const FERRY_ROUTES = [
     { key: 'SWBSGI', from: 'Swartz Bay', to: 'Southern Gulf Islands', color: '#0891b2', fromLat: 48.877, fromLon: -123.509, toLat: 48.810, toLon: -123.300 },
 ];
 
-// Generate curved route polylines between terminals
 function makeRouteCoords(fromLat, fromLon, toLat, toLon, points = 40) {
     const coords = [];
     for (let i = 0; i <= points; i++) {
         const t = i / points;
         const lat = fromLat + (toLat - fromLat) * t;
         const lon = fromLon + (toLon - fromLon) * t;
-        // Add a slight curve
         const bulge = Math.sin(t * Math.PI) * 0.04;
         coords.push([lat + bulge * (toLon > fromLon ? 1 : -1), lon]);
     }
@@ -54,8 +52,6 @@ function makeRouteCoords(fromLat, fromLon, toLat, toLon, points = 40) {
 }
 
 let ferryData = null;
-let ferryPolylines = [];
-let ferryMarkers = [];
 const ferryGroup = L.layerGroup();
 
 async function loadFerrySchedules() {
@@ -64,18 +60,13 @@ async function loadFerrySchedules() {
         const res = await fetch(BC_FERRIES_API);
         ferryData = await res.json();
         return ferryData;
-    } catch (e) {
-        console.error('Failed to load ferry data:', e);
-        return null;
-    }
+    } catch { return null; }
 }
 
 function getRouteSchedule(data, routeKey) {
     if (!data) return null;
-    // API returns routes as array
     for (const route of (data.routes || [])) {
-        const code = route.routeCode || '';
-        if (code === routeKey || code.includes(routeKey)) return route;
+        if ((route.routeCode || '') === routeKey || (route.routeCode || '').includes(routeKey)) return route;
     }
     return null;
 }
@@ -97,57 +88,45 @@ function capacityBar(pct) {
 async function renderFerries() {
     const data = await loadFerrySchedules();
     ferryGroup.clearLayers();
-    ferryPolylines = [];
-    ferryMarkers = [];
 
     for (const route of FERRY_ROUTES) {
         const coords = makeRouteCoords(route.fromLat, route.fromLon, route.toLat, route.toLon);
-        const line = L.polyline(coords, {
-            color: route.color, weight: 3, opacity: 0.7, dashArray: '10 6'
-        });
-        ferryPolylines.push(line);
+        const line = L.polyline(coords, { color: route.color, weight: 3, opacity: 0.7, dashArray: '10 6' });
         ferryGroup.addLayer(line);
 
-        // Terminal markers
-        for (const [lat, lon, label, isFrom] of [
-            [route.fromLat, route.fromLon, route.from, true],
-            [route.toLat, route.toLon, route.to, false]
+        for (const [lat, lon, label] of [
+            [route.fromLat, route.fromLon, route.from],
+            [route.toLat, route.toLon, route.to]
         ]) {
             const marker = L.circleMarker([lat, lon], {
                 radius: 6, fillColor: route.color, fillOpacity: 0.9, color: '#fff', weight: 2
             });
 
-            // Find schedule data for this route
             const sched = getRouteSchedule(data, route.key);
-            let popupHTML = `<div class="ferry-popup">
-                <h3>🚢 ${label}</h3>
+            let popupHTML = `<div class="ferry-popup"><h3>🚢 ${label}</h3>
                 <div class="detail">${route.from} ↔ ${route.to}</div>`;
 
             if (sched && sched.sailings) {
-                popupHTML += `<div style="margin-top:0.5rem;font-size:0.75rem">`;
-                const sailings = sched.sailings.slice(0, 5);
-                for (const s of sailings) {
+                popupHTML += '<div style="margin-top:0.5rem;font-size:0.75rem">';
+                for (const s of sched.sailings.slice(0, 5)) {
                     const dep = formatTime(s.departureTime || s.scheduledDeparture);
                     const arr = formatTime(s.arrivalTime || s.scheduledArrival);
                     const vessel = s.vesselName || '';
                     const cap = s.fill != null ? s.fill : null;
                     const status = s.status || '';
-                    const statusIcon = status.toLowerCase().includes('cancel') ? '❌' : 
-                                       status.toLowerCase().includes('delay') ? '⚠️' : '✅';
+                    const icon = status.toLowerCase().includes('cancel') ? '❌' :
+                                 status.toLowerCase().includes('delay') ? '⚠️' : '✅';
                     popupHTML += `<div style="padding:0.25rem 0;border-bottom:1px solid #eee">
-                        <div><b>${dep}</b> → ${arr} ${statusIcon}</div>
+                        <div><b>${dep}</b> → ${arr} ${icon}</div>
                         ${vessel ? `<div style="color:#666">⛴️ ${vessel}</div>` : ''}
-                        ${capacityBar(cap)}
-                    </div>`;
+                        ${capacityBar(cap)}</div>`;
                 }
-                popupHTML += `</div>`;
+                popupHTML += '</div>';
             } else {
-                popupHTML += `<div style="margin-top:0.4rem;color:#888;font-size:0.75rem">Schedule data unavailable</div>`;
+                popupHTML += '<div style="margin-top:0.4rem;color:#888;font-size:0.75rem">Schedule data unavailable</div>';
             }
-
-            popupHTML += `<div style="margin-top:0.4rem;font-size:0.65rem;color:#999">Source: bcferriesapi.ca · Updated every 5 min</div></div>`;
+            popupHTML += '<div style="margin-top:0.4rem;font-size:0.65rem;color:#999">Source: bcferriesapi.ca · Updated every 5 min</div></div>';
             marker.bindPopup(popupHTML, { maxWidth: 280 });
-            ferryMarkers.push(marker);
             ferryGroup.addLayer(marker);
         }
     }
@@ -155,10 +134,9 @@ async function renderFerries() {
 
 ferryGroup.addTo(map);
 renderFerries();
-// Refresh ferry data every 5 minutes
 setInterval(() => { ferryData = null; renderFerries(); }, 300000);
 
-// ─── Marinas & Harbours ───
+// ─── Marinas & Harbours (LOCAL API) ───
 
 let marinasLayer = null;
 let marinasLoaded = false;
@@ -166,56 +144,34 @@ let marinasLoaded = false;
 async function loadMarinas() {
     if (marinasLoaded) return;
     marinasLoaded = true;
-
-    const query = `[out:json][timeout:25];(
-        node["seamark:type"~"harbour|marina"](47,-130,51,-122);
-        node["harbour"="marina"](47,-130,51,-122);
-        node["amenity"="marina"](47,-130,51,-122);
-        way["seamark:type"~"harbour|marina"](47,-130,51,-122);
-        way["amenity"="marina"](47,-130,51,-122);
-    );out center;`;
-
     try {
-        const res = await fetch('https://overpass-api.de/api/interpreter', {
-            method: 'POST', body: 'data=' + encodeURIComponent(query)
-        });
+        const res = await fetch(`${LOCAL_API}/sea/pois?type=marina&lat=49.3&lon=-123.3&radius=300&limit=200`);
         const data = await res.json();
         const markers = [];
 
-        for (const el of data.elements) {
-            const lat = el.lat || el.center?.lat;
-            const lon = el.lon || el.center?.lon;
-            if (!lat || !lon) continue;
-
-            const name = el.tags?.name || el.tags?.['seamark:name'] || 'Marina';
-            const type = el.tags?.['seamark:type'] || el.tags?.amenity || 'harbour';
-            const website = el.tags?.website;
-            const phone = el.tags?.phone;
-            const operator = el.tags?.operator;
-            const toilets = el.tags?.toilets === 'yes' ? '✅' : '';
-            const fuel = el.tags?.['seamark:type'] === 'fuel_station' || el.tags?.fuel === 'yes' ? '⛽' : '';
-            const water = el.tags?.['water_point'] === 'yes' ? '💧' : '';
-            const wifi = el.tags?.internet_access === 'wlan' ? '📶' : '';
-            const maxLen = el.tags?.['maxlength'] || el.tags?.['boat:maxlength'] || '';
-            const depth = el.tags?.['depth'] || el.tags?.['seamark:depth'] || '';
-            const capacity = el.tags?.capacity || '';
-
-            const amenities = [fuel, water, toilets, wifi].filter(Boolean).join(' ');
+        for (const poi of data.pois || []) {
+            const amenities = [];
+            if (poi.fuel === 'yes') amenities.push('⛽');
+            if (poi.water || poi.tags?.water_point === 'yes') amenities.push('💧');
+            if (poi.toilets === 'yes') amenities.push('🚽');
+            if (poi.internet_access === 'wlan') amenities.push('📶');
+            
             const details = [];
-            if (operator) details.push(`🏢 ${operator}`);
-            if (capacity) details.push(`🚤 ${capacity} berths`);
-            if (maxLen) details.push(`📏 Max ${maxLen}m`);
-            if (depth) details.push(`🔻 ${depth}m depth`);
+            if (poi.operator) details.push(`🏢 ${poi.operator}`);
+            if (poi.capacity) details.push(`🚤 ${poi.capacity} berths`);
+            if (poi.maxlength) details.push(`📏 Max ${poi.maxlength}m`);
+            if (poi.depth) details.push(`🔻 ${poi.depth}m`);
 
-            const marker = L.circleMarker([lat, lon], {
+            const marker = L.circleMarker([poi.lat, poi.lon], {
                 radius: 5, fillColor: '#f59e0b', fillOpacity: 0.8, color: '#d97706', weight: 1.5
             }).bindPopup(`
                 <div class="marina-popup">
-                    <h3>⛵ ${name}</h3>
-                    <div class="detail">${type}${amenities ? ' · ' + amenities : ''}</div>
+                    <h3>⛵ ${poi.name || 'Marina'}</h3>
+                    <div class="detail">${poi.type}${amenities.length ? ' · ' + amenities.join(' ') : ''}</div>
                     ${details.length ? '<div class="detail" style="margin-top:0.3rem">' + details.join(' · ') + '</div>' : ''}
-                    ${phone ? `<div class="detail">📞 ${phone}</div>` : ''}
-                    ${website ? `<div class="detail"><a href="${website}" target="_blank" rel="noopener">${website}</a></div>` : ''}
+                    ${poi.phone ? `<div class="detail">📞 ${poi.phone}</div>` : ''}
+                    ${poi.website ? `<div class="detail"><a href="${poi.website}" target="_blank" rel="noopener">${poi.website}</a></div>` : ''}
+                    <div class="detail" style="margin-top:0.3rem">${poi.dist_km}km away</div>
                 </div>
             `, { maxWidth: 280 });
             markers.push(marker);
@@ -224,6 +180,126 @@ async function loadMarinas() {
         marinasLayer = L.layerGroup(markers);
     } catch (err) {
         console.error('Failed to load marinas:', err);
+    }
+}
+
+// ─── Coastal POIs (beaches, slipways, etc.) ───
+
+let coastalPoisLayer = null;
+let coastalPoisLoaded = false;
+
+async function loadCoastalPois() {
+    if (coastalPoisLoaded) return;
+    coastalPoisLoaded = true;
+    try {
+        const res = await fetch(`${LOCAL_API}/sea/pois?type=all&lat=49.3&lon=-123.3&radius=300&limit=300`);
+        const data = await res.json();
+        const markers = [];
+
+        const typeIcons = {
+            harbour: '⚓', beach: '🏖️', lighthouse: '🗼', slipway: '🚤',
+            ferry_terminal: '⛴️', wreck: '⚠️', cliff: '🏔️', coastguard: '🛟',
+            small_craft_facility: '🚤', boat_rental: '🚣', marina: '⛵'
+        };
+        // Skip marinas (separate layer) and lighthouses (separate layer)
+        const skip = new Set(['marina', 'lighthouse']);
+
+        for (const poi of data.pois || []) {
+            if (skip.has(poi.type)) continue;
+            const icon = typeIcons[poi.type] || '📍';
+
+            const marker = L.circleMarker([poi.lat, poi.lon], {
+                radius: 4, fillColor: '#6366f1', fillOpacity: 0.7, color: '#4f46e5', weight: 1
+            }).bindPopup(`
+                <div class="marina-popup">
+                    <h3>${icon} ${poi.name || poi.type}</h3>
+                    <div class="detail">${poi.type.replace('_', ' ')}</div>
+                    ${poi.description ? `<div class="detail" style="margin-top:0.3rem">${poi.description}</div>` : ''}
+                    ${poi.website ? `<div class="detail"><a href="${poi.website}" target="_blank" rel="noopener">${poi.website}</a></div>` : ''}
+                    <div class="detail" style="margin-top:0.3rem">${poi.dist_km}km away</div>
+                </div>
+            `, { maxWidth: 280 });
+            markers.push(marker);
+        }
+
+        coastalPoisLayer = L.layerGroup(markers);
+    } catch (err) {
+        console.error('Failed to load coastal POIs:', err);
+    }
+}
+
+// ─── Lighthouses (LOCAL API) ───
+
+let lighthousesLayer = null;
+let lighthousesLoaded = false;
+
+async function loadLighthouses() {
+    if (lighthousesLoaded) return;
+    lighthousesLoaded = true;
+    try {
+        const res = await fetch(`${LOCAL_API}/sea/lighthouses`);
+        const data = await res.json();
+        const markers = [];
+
+        for (const lh of data.lighthouses || []) {
+            const details = [];
+            if (lh.height) details.push(`Height: ${lh.height}`);
+            if (lh.light_range) details.push(`Range: ${lh.light_range}nm`);
+            if (lh.light_character) details.push(`Character: ${lh.light_character}`);
+            if (lh.start_date) details.push(`Built: ${lh.start_date}`);
+            if (lh.operator) details.push(`Operator: ${lh.operator}`);
+
+            const marker = L.circleMarker([lh.lat, lh.lon], {
+                radius: 7, fillColor: '#fbbf24', fillOpacity: 0.9, color: '#92400e', weight: 2
+            }).bindPopup(`
+                <div class="marina-popup">
+                    <h3>🗼 ${lh.name}</h3>
+                    ${details.length ? details.map(d => `<div class="detail">${d}</div>`).join('') : ''}
+                    ${lh.wikipedia ? `<div class="detail" style="margin-top:0.3rem"><a href="https://en.wikipedia.org/wiki/${lh.wikipedia.replace('en:', '')}" target="_blank" rel="noopener">Wikipedia ↗</a></div>` : ''}
+                </div>
+            `, { maxWidth: 280 });
+            markers.push(marker);
+        }
+
+        lighthousesLayer = L.layerGroup(markers);
+    } catch (err) {
+        console.error('Failed to load lighthouses:', err);
+    }
+}
+
+// ─── Coastal Trails (LOCAL API) ───
+
+let trailsLayer = null;
+let trailsLoaded = false;
+
+async function loadCoastalTrails() {
+    if (trailsLoaded) return;
+    trailsLoaded = true;
+    try {
+        const res = await fetch(`${LOCAL_API}/sea/trails?lat=49.3&lon=-123.3&radius=200&limit=50`);
+        const data = await res.json();
+        const markers = [];
+
+        for (const trail of data.trails || []) {
+            const diffColors = { easy: '#22c55e', moderate: '#f59e0b', hard: '#ef4444' };
+            const color = diffColors[trail.difficulty] || '#94a3b8';
+            
+            const marker = L.circleMarker([trail.lat, trail.lon], {
+                radius: 5, fillColor: color, fillOpacity: 0.8, color: '#fff', weight: 1.5
+            }).bindPopup(`
+                <div class="marina-popup">
+                    <h3>🥾 ${trail.name}</h3>
+                    ${trail.distance_km ? `<div class="detail">📏 ${trail.distance_km} km</div>` : ''}
+                    ${trail.difficulty ? `<div class="detail">Difficulty: <span style="color:${color}">${trail.difficulty}</span></div>` : ''}
+                    <div class="detail">${trail.dist_km}km away · ${trail.trail_count || 1} segment(s)</div>
+                </div>
+            `, { maxWidth: 280 });
+            markers.push(marker);
+        }
+
+        trailsLayer = L.layerGroup(markers);
+    } catch (err) {
+        console.error('Failed to load coastal trails:', err);
     }
 }
 
@@ -247,20 +323,7 @@ const TIDE_STATIONS = [
     { name: "Tofino", id: "7811", lat: 49.1510, lon: -125.9100 },
     { name: "Port Hardy", id: "7827", lat: 50.7230, lon: -127.4250 },
     { name: "Comox", id: "7824", lat: 49.6680, lon: -124.9300 },
-    { name: "Seymour Narrows", id: "7825", lat: 50.1050, lon: -125.3100 },
 ];
-
-function tideIcon(value, allValues) {
-    if (!allValues || allValues.length < 2) return '🔄';
-    const sorted = [...allValues].sort((a, b) => a - b);
-    const min = sorted[0], max = sorted[sorted.length - 1];
-    const range = max - min;
-    if (range === 0) return '🔄';
-    const pct = (value - min) / range;
-    if (pct > 0.8) return '🔴'; // high
-    if (pct < 0.2) return '🟢'; // low
-    return '🔵'; // mid
-}
 
 async function loadTides() {
     if (tidesLoaded) return;
@@ -273,7 +336,6 @@ async function loadTides() {
         const marker = L.circleMarker([station.lat, station.lon], {
             radius: 7, fillColor: '#06b6d4', fillOpacity: 0.85, color: '#0891b2', weight: 2
         });
-
         marker.bindPopup(`<div class="tide-popup"><h3>🔄 ${station.name}</h3><div class="detail">Loading tide data...</div></div>`, { maxWidth: 300 });
 
         marker.on('click', async () => {
@@ -285,8 +347,6 @@ async function loadTides() {
                 if (res.ok) {
                     const data = await res.json();
                     const todayData = data.filter(d => d.eventDate?.startsWith(today));
-                    
-                    // Find high/low for today
                     const values = todayData.map(d => d.value).filter(Boolean);
                     const maxVal = Math.max(...values);
                     const minVal = Math.min(...values);
@@ -296,11 +356,7 @@ async function loadTides() {
                         const time = new Date(entry.eventDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                         const v = entry.value;
                         const icon = v === maxVal ? '🔴 High' : v === minVal ? '🟢 Low' : '';
-                        tableRows += `<tr>
-                            <td>${time}</td>
-                            <td><b>${v.toFixed(2)}m</b></td>
-                            <td>${icon}</td>
-                        </tr>`;
+                        tableRows += `<tr><td>${time}</td><td><b>${v.toFixed(2)}m</b></td><td>${icon}</td></tr>`;
                     }
 
                     const now = new Date();
@@ -310,8 +366,7 @@ async function loadTides() {
                         nextHTML = '<div style="margin-top:0.4rem;font-size:0.7rem;color:#0891b2">Coming up:</div>';
                         for (const e of nextEntries) {
                             const t = new Date(e.eventDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                            const isHigh = e.value === maxVal;
-                            nextHTML += `<div style="font-size:0.72rem">${t} — <b>${e.value.toFixed(2)}m</b> ${isHigh ? '🔴' : ''}</div>`;
+                            nextHTML += `<div style="font-size:0.72rem">${t} — <b>${e.value.toFixed(2)}m</b> ${e.value === maxVal ? '🔴' : ''}</div>`;
                         }
                     }
 
@@ -320,7 +375,7 @@ async function loadTides() {
                             <h3>🔄 ${station.name}</h3>
                             <div class="detail">${today} · Station ${station.id}</div>
                             <div style="margin:0.4rem 0;font-size:0.75rem">
-                                <span style="color:#dc2626">🔴 High: ${maxVal.toFixed(2)}m</span> · 
+                                <span style="color:#dc2626">🔴 High: ${maxVal.toFixed(2)}m</span> ·
                                 <span style="color:#16a34a">🟢 Low: ${minVal.toFixed(2)}m</span>
                             </div>
                             ${nextHTML}
@@ -338,10 +393,8 @@ async function loadTides() {
                 marker.setPopupContent(`<div class="tide-popup"><h3>🔄 ${station.name}</h3><div class="detail">Could not load tide data</div></div>`);
             }
         });
-
         markers.push(marker);
     }
-
     tidesLayer = L.layerGroup(markers);
 }
 
@@ -382,5 +435,29 @@ document.getElementById('layerTides').addEventListener('change', async (e) => {
         if (tidesLayer) tidesLayer.addTo(map);
     } else {
         if (tidesLayer) map.removeLayer(tidesLayer);
+    }
+});
+document.getElementById('layerLighthouses').addEventListener('change', async (e) => {
+    if (e.target.checked) {
+        await loadLighthouses();
+        if (lighthousesLayer) lighthousesLayer.addTo(map);
+    } else {
+        if (lighthousesLayer) map.removeLayer(lighthousesLayer);
+    }
+});
+document.getElementById('layerCoastalPois').addEventListener('change', async (e) => {
+    if (e.target.checked) {
+        await loadCoastalPois();
+        if (coastalPoisLayer) coastalPoisLayer.addTo(map);
+    } else {
+        if (coastalPoisLayer) map.removeLayer(coastalPoisLayer);
+    }
+});
+document.getElementById('layerTrails').addEventListener('change', async (e) => {
+    if (e.target.checked) {
+        await loadCoastalTrails();
+        if (trailsLayer) trailsLayer.addTo(map);
+    } else {
+        if (trailsLayer) map.removeLayer(trailsLayer);
     }
 });
