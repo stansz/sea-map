@@ -12,7 +12,7 @@ const map = L.map('map', {
 });
 
 // Base map — CARTO Voyager
-const baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+const baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_5342_1_9ccb0400cfb4bb8322989f56', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
     maxZoom: 19
 }).addTo(map);
